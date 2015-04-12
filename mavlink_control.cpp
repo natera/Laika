@@ -125,7 +125,7 @@ top (int argc, char **argv)
 	 * Start the port and autopilot_interface
 	 * This is where the port is opened, and read and write threads are started.
 	 */
-	serial_port.start();
+	//serial_port.start();
 	autopilot_interface.start();
 
 

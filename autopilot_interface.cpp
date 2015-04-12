@@ -53,6 +53,7 @@
 // ------------------------------------------------------------------------------
 
 #include "autopilot_interface.h"
+#include "vision.h"
 
 
 // ----------------------------------------------------------------------------------
@@ -694,106 +695,115 @@ start()
 {
 	int result;
 
+	// // --------------------------------------------------------------------------
+	// //   CHECK SERIAL PORT
+	// // --------------------------------------------------------------------------
+	//
+	// if ( not serial_port->status == 1 ) // SERIAL_PORT_OPEN
+	// {
+	// 	fprintf(stderr,"ERROR: serial port not open\n");
+	// 	throw 1;
+	// }
+	//
+	//
+	// // --------------------------------------------------------------------------
+	// //   READ THREAD
+	// // --------------------------------------------------------------------------
+	//
+	// printf("START READ THREAD \n");
+	//
+	// result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
+	// if (result)
+	// 	throw result;
+	//
+	// // now we're reading messages
+	// printf("\n");
+	//
+	//
+	// // --------------------------------------------------------------------------
+	// //   CHECK FOR MESSAGES
+	// // --------------------------------------------------------------------------
+	//
+	// printf("CHECK FOR MESSAGES\n");
+	//
+	// while (not current_messages.sysid)
+	// {
+	// 	if (time_to_exit)
+	// 		return;
+	// 	sleep(1); // check at 2Hz
+	// }
+	//
+	// printf("Found\n");
+	//
+	// // now we know autopilot is sending messages
+	// printf("\n");
+	//
+	//
+	// // --------------------------------------------------------------------------
+	// //   GET SYSTEM and COMPONENT IDs
+	// // --------------------------------------------------------------------------
+	//
+	// // This comes from the heartbeat, which in theory should only come from
+	// // the autopilot we're directly connected to it.  If there is more than one
+	// // vehicle then we can't expect to discover id's like this.
+	// // In which case set the id's manually.
+	//
+	// // System ID
+	// if ( not system_id )
+	// {
+	// 	system_id = current_messages.sysid;
+	// 	printf("GOT VEHICLE SYSTEM ID: %i\n", system_id );
+	// }
+	//
+	// // Component ID
+	// if ( not autopilot_id )
+	// {
+	// 	autopilot_id = current_messages.compid;
+	// 	printf("GOT AUTOPILOT COMPONENT ID: %i\n", autopilot_id);
+	// 	printf("\n");
+	// }
+	// // --------------------------------------------------------------------------
+	// //   PSITION STIMATOR THREAD
+	// // --------------------------------------------------------------------------
+	//
+	// //printf("START POSITION ESTIMATOR THREAD \n");
+	//
+	// //result = pthread_create( &read_tid, NULL, &start_autopilot_interface_position_estimator_thread, this );
+	// //if ( result ) throw result;
+	//
+	// // now we're reading messages
+	// //printf("\n");
+	//
+	//
+	// // --------------------------------------------------------------------------
+	// //   WRITE THREAD
+	// // --------------------------------------------------------------------------
+	// printf("START WRITE THREAD \n");
+	// result = pthread_create( &write_tid, NULL, &start_autopilot_interface_write_thread, this );
+	// if (result)
+	// 	throw result;
+	//
+	// // wait for it to be started
+	// while (not writing_status)
+	// {
+	// 	if(time_to_exit)
+	// 		return;
+	// 	sleep(1); // 10Hz
+	// }
+	// // now we're streaming setpoint commands
+	// printf("\n");
+	// // Done!
+	//
+
 	// --------------------------------------------------------------------------
-	//   CHECK SERIAL PORT
+	//   VISION THREAD
 	// --------------------------------------------------------------------------
-
-	if ( not serial_port->status == 1 ) // SERIAL_PORT_OPEN
-	{
-		fprintf(stderr,"ERROR: serial port not open\n");
-		throw 1;
-	}
-
-
-	// --------------------------------------------------------------------------
-	//   READ THREAD
-	// --------------------------------------------------------------------------
-
-	printf("START READ THREAD \n");
-
-	result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
+	printf("START VISION THREAD \n");
+	result = pthread_create( &vision_tid, NULL, &start_autopilot_interface_vision_thread, this );
 	if (result)
 		throw result;
-
-	// now we're reading messages
-	printf("\n");
-
-
-	// --------------------------------------------------------------------------
-	//   CHECK FOR MESSAGES
-	// --------------------------------------------------------------------------
-
-	printf("CHECK FOR MESSAGES\n");
-
-	while (not current_messages.sysid)
-	{
-		if (time_to_exit)
-			return;
-		sleep(1); // check at 2Hz
-	}
-
-	printf("Found\n");
-
-	// now we know autopilot is sending messages
-	printf("\n");
-
-
-	// --------------------------------------------------------------------------
-	//   GET SYSTEM and COMPONENT IDs
-	// --------------------------------------------------------------------------
-
-	// This comes from the heartbeat, which in theory should only come from
-	// the autopilot we're directly connected to it.  If there is more than one
-	// vehicle then we can't expect to discover id's like this.
-	// In which case set the id's manually.
-
-	// System ID
-	if ( not system_id )
-	{
-		system_id = current_messages.sysid;
-		printf("GOT VEHICLE SYSTEM ID: %i\n", system_id );
-	}
-
-	// Component ID
-	if ( not autopilot_id )
-	{
-		autopilot_id = current_messages.compid;
-		printf("GOT AUTOPILOT COMPONENT ID: %i\n", autopilot_id);
-		printf("\n");
-	}
-	// --------------------------------------------------------------------------
-	//   PSITION STIMATOR THREAD
-	// --------------------------------------------------------------------------
-
-	//printf("START POSITION ESTIMATOR THREAD \n");
-
-	//result = pthread_create( &read_tid, NULL, &start_autopilot_interface_position_estimator_thread, this );
-	//if ( result ) throw result;
-
-	// now we're reading messages
-	//printf("\n");
-
-
-	// --------------------------------------------------------------------------
-	//   WRITE THREAD
-	// --------------------------------------------------------------------------
-	printf("START WRITE THREAD \n");
-	result = pthread_create( &write_tid, NULL, &start_autopilot_interface_write_thread, this );
-	if (result)
-		throw result;
-
-	// wait for it to be started
-	while (not writing_status)
-	{
-		if(time_to_exit)
-			return;
-		sleep(1); // 10Hz
-	}
-	// now we're streaming setpoint commands
-	printf("\n");
-	// Done!
+	result = pthread_setname_np(vision_tid, "Laika Vision");
 	return;
-
 }
 
 
@@ -876,6 +886,16 @@ start_position_estimator_thread(void)
 		return;
 }
 
+// ------------------------------------------------------------------------------
+//   Vision Thread
+// ------------------------------------------------------------------------------
+void
+Autopilot_Interface::
+start_vision_thread(void)
+{
+		vision_main_thread();
+		return;
+}
 
 
 // ------------------------------------------------------------------------------
@@ -1052,6 +1072,19 @@ start_autopilot_interface_position_estimator_thread(void *args)
 
 	// run the object's read thread
 	autopilot_interface->start_position_estimator_thread();
+
+	// done!
+	return NULL;
+}
+
+void*
+start_autopilot_interface_vision_thread(void *args)
+{
+	// takes an autopilot object argument
+	Autopilot_Interface *autopilot_interface = (Autopilot_Interface *)args;
+
+	// run the object's read thread
+	autopilot_interface->start_vision_thread();
 
 	// done!
 	return NULL;

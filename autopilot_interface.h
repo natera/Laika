@@ -131,6 +131,7 @@ void override_channel_raw(uint16_t chan1_raw, uint16_t chan2_raw, uint16_t chan3
 void* start_autopilot_interface_read_thread(void *args);
 void* start_autopilot_interface_write_thread(void *args);
 void* start_autopilot_interface_position_estimator_thread(void *args);
+void* start_autopilot_interface_vision_thread(void *args);
 
 
 // ------------------------------------------------------------------------------
@@ -296,6 +297,7 @@ public:
 	void start_read_thread();
 	void start_write_thread(void);
 	void start_position_estimator_thread(void);
+	void start_vision_thread(void);
 
 	void handle_quit( int sig );
 
@@ -308,6 +310,7 @@ private:
 
 	pthread_t read_tid;
 	pthread_t write_tid;
+	pthread_t vision_tid;
 
 	mavlink_set_position_target_local_ned_t current_setpoint;
 
