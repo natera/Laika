@@ -99,7 +99,7 @@ int vision_main_thread()//( int argc, char** argv )
 
     //status = start_Video(1);
 
-    VideoCapture cap(1); //capture the video from web cam
+    VideoCapture cap(0); //capture the video from web cam
 
     if ( !cap.isOpened() )  // if not success, exit program
     {
@@ -293,96 +293,84 @@ void do_ROI(int, void* )
     //Find contours
     findContours(cannyOut, contours, hierarchy, CV_RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
 
-    //Get the moments
-    vector<Moments> mu(contours.size() );
-    for( size_t i = 0; i < contours.size(); i++ )
+    if(contours.size()>3)
     {
-        mu[i] = moments( contours[i], false );
-        //printf("Got contour %i\n", i);
-    }
-
-    //Sort vector
-    sort(mu.begin(), mu.end(), sortByArea);
-
-    //Print sorted vector
-    for( size_t i = 0; i< contours.size(); i++ )
-    {
-        printf("SORTED: * Contour[%d] - Area (M_00) = %.2f - Area OpenCV: %.2f - Length: %.2f \n", (int)i, mu[i].m00, contourArea(contours[i]), arcLength( contours[i], true ) );
-    }
-    //Get the mass centers:
-    vector<Point2f> mc( contours.size() );
-    //for( size_t i = 0; i < contours.size(); i++ )
-    //Get only 4
-    for( size_t i = 0; i < 4; i++ )
-    {
-        mc[i] = Point2f( static_cast<float>(mu[i].m10/mu[i].m00) , static_cast<float>(mu[i].m01/mu[i].m00) );
-        printf("For contour %i: X=%f, Y=%f\n", i, mc[i].x, mc[i].y);
-    }
-
-    //Draw contours
-    if (SHOW)
-    {
-        //Mat drawing = Mat::zeros( canny_output.size(), CV_8UC3 );
+        //Get the moments
+        vector<Moments> mu(contours.size() );
+        for( size_t i = 0; i < contours.size(); i++ )
+        {
+            mu[i] = moments( contours[i], true );
+            //printf("Got contour %i\n", i);
+        }
+        
+        //Sort vector
+        sort(mu.begin(), mu.end(), sortByArea);
+        
+        //Print sorted vector
         for( size_t i = 0; i< contours.size(); i++ )
         {
-            Scalar color = Scalar( rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
-            drawContours(imgOG, contours, (int)i, color, 2, 8, hierarchy, 0, Point() );
-            circle(imgOG, mc[i], 4, color, -1, 8, 0 );
+            printf("SORTED: Contour[%d] - Area (M_00) = %.2f - Area OpenCV: %.2f - Length: %.2f \n", (int)i, mu[i].m00, contourArea(contours[i]), arcLength( contours[i], true ) );
         }
-        namedWindow("Contours", WINDOW_AUTOSIZE);
-        imshow("Contours", imgOG);
-    }
-    //Get coordinates for ROI
-        //If for some reason there is no previous ROI, check if there is an error
-    if(contours.size()>0)
-    {
-        if(contours.size()<4)
+        //Get the mass centers:
+        vector<Point2f> mc( contours.size() );
+        //for( size_t i = 0; i < contours.size(); i++ )
+        //Get only 4
+        for( size_t i = 0; i < 4; i++ )
         {
-            //ERROR!
-            //Send message
-            Xmin=0;
-            Xmax=(float)imgOG.cols;
-            Ymin=0;
-            Ymax=(float)imgOG.rows;
+            mc[i] = Point2f( static_cast<float>(mu[i].m10/mu[i].m00) , static_cast<float>(mu[i].m01/mu[i].m00) );
+            printf("For contour %i: X=%f, Y=%f\n", i, mc[i].x, mc[i].y);
         }
-        else
+
+        //Draw contours
+        if (SHOW)
         {
-            int j;
-            //Xmin
-            Xmin=mc[0].x;
-            for (j = 0; j < 4; j++)
+            //Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
+            for( size_t i = 0; i< contours.size(); i++ )
             {
-                if (Xmin > mc[j].x)
-                {
-                    Xmin = mc[j].x;
-                }
+                Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+                drawContours(imgOG, contours, (int)i, color, 2, 8, hierarchy, 0, Point() );
+                circle(imgOG, mc[i], 4, color, -1, 8, 0 );
             }
-            //Xmax
-            Xmax=mc[0].x;
-            for (j = 0; j < 4; j++)
+            namedWindow("Contours", WINDOW_AUTOSIZE );
+            imshow("Contours", imgOG );
+        }
+        //Get coordinates for ROI
+            //If for some reason there is no previous ROI, check if there is an error
+        int j;
+        //Xmin
+        Xmin=mc[0].x;
+        for (j = 0; j < 4; j++)
+        {
+            if (Xmin > mc[j].x)
             {
-                if (Xmax < mc[j].x)
-                {
-                    Xmax = mc[j].x;
-                }
+                Xmin = mc[j].x;
             }
-            //Ymin
-            Ymin=mc[0].y;
-            for (j = 0; j < 4; j++)
+        }
+        //Xmax
+        Xmax=mc[0].x;
+        for (j = 0; j < 4; j++)
+        {
+            if (Xmax < mc[j].x)
             {
-                if (Ymin > mc[j].y)
-                {
-                    Ymin = mc[j].y;
-                }
+                Xmax = mc[j].x;
             }
-            //Ymax
-            Ymax=mc[0].y;
-            for (j = 0; j < 4; j++)
+        }
+        //Ymin
+        Ymin=mc[0].y;
+        for (j = 0; j < 4; j++)
+        {
+            if (Ymin > mc[j].y)
             {
-                if (Ymax < mc[j].y)
-                {
-                    Ymax = mc[j].y;
-                }
+                Ymin = mc[j].y;
+            }
+        }
+        //Ymax
+        Ymax=mc[0].y;
+        for (j = 0; j < 4; j++)
+        {
+            if (Ymax < mc[j].y)
+            {
+                Ymax = mc[j].y;
             }
         }
     }
@@ -391,25 +379,25 @@ void do_ROI(int, void* )
         //Nothing found!
         //Send message
         Xmin=0;
-        Xmax=(float)imgOG.cols;
+        Xmax=(float)imgThresh.cols;
         Ymin=0;
-        Ymax=(float)imgOG.rows;
+        Ymax=(float)imgThresh.rows;
     }
-
+    
     //Print ROI (x,y)
     printf("Got Xmin = %f Xmax = %f Ymin = %f Ymax = %f\n", Xmin, Xmax, Ymin, Ymax);
-
+    
     //Check if X and Y are the same
     if (Xmin == Xmax || Ymin == Ymax)
     {
         //WUT
         //Send message
         Xmin=0;
-        Xmax=(float)imgOG.cols;
+        Xmax=(float)imgThresh.cols;
         Ymin=0;
-        Ymax=(float)imgOG.rows;
+        Ymax=(float)imgThresh.rows;
     }
-
+    
     //ROI in original image
     //Rect (Xmin, Ymin, Width, Height)
     imgROI = imgThresh( Rect (Xmin, Ymin, Xmax-Xmin, Ymax-Ymin) );
