@@ -69,7 +69,9 @@ top (int argc, char **argv)
 
 	// Default input arguments
 	char *uart_name = (char*)"/dev/ttyACM0";
-	int baudrate = 57600;
+	//int baudrate = 57600;
+	int baudrate = 115200;
+	//int baudrate = 9600;
 
 	// do the parse, will throw an int if it fails
 	parse_commandline(argc, argv, uart_name, baudrate);
@@ -125,7 +127,10 @@ top (int argc, char **argv)
 	 * Start the port and autopilot_interface
 	 * This is where the port is opened, and read and write threads are started.
 	 */
-	//serial_port.start();
+	try {
+		serial_port.start();
+	}
+	catch(int x) {}
 	autopilot_interface.start();
 
 

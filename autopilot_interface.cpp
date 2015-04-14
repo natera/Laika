@@ -355,26 +355,26 @@ read_messages()
 					this_timestamps.heartbeat = current_messages.time_stamps.heartbeat;
 					switch(current_messages.heartbeat.custom_mode)
 					{
-						case 0:{mode="Stabilize";break;}
-						case 1:{mode="Acro";break;}
-						case 2:{mode="Altitude Hold";break;}
-						case 3:{mode="Auto";break;}
-						case 4:{mode="Guided";break;}
-						case 5:{mode="Loiter";break;}
-						case 6:{mode="RTL";break;}
-						case 7:{mode="Circle";break;}
-						case 9:{mode="Land";break;}
-						case 16:{mode="Position Hold";break;}
+						case 0:{mode=(char *)"Stabilize";break;}
+						case 1:{mode=(char *)"Acro";break;}
+						case 2:{mode=(char *)"Altitude Hold";break;}
+						case 3:{mode=(char *)"Auto";break;}
+						case 4:{mode=(char *)"Guided";break;}
+						case 5:{mode=(char *)"Loiter";break;}
+						case 6:{mode=(char *)"RTL";break;}
+						case 7:{mode=(char *)"Circle";break;}
+						case 9:{mode=(char *)"Land";break;}
+						case 16:{mode=(char *)"Position Hold";break;}
 					}
 					switch(current_messages.heartbeat.system_status)
 					{
-						case 0:{status="Unkown";break;}
-						case 1:{status="Boot";break;}
-						case 2:{status="Calibrating";break;}
-						case 3:{status="Standby";break;}
-						case 4:{status="Active (Motors Engaged)";break;}
-						case 5:{status="Critical";break;}
-						case 6:{status="Emergency";break;}
+						case 0:{status=(char *)"Unkown";break;}
+						case 1:{status=(char *)"Boot";break;}
+						case 2:{status=(char *)"Calibrating";break;}
+						case 3:{status=(char *)"Standby";break;}
+						case 4:{status=(char *)"Active (Motors Engaged)";break;}
+						case 5:{status=(char *)"Critical";break;}
+						case 6:{status=(char *)"Emergency";break;}
 					}
 
 					printf("\033[1;1H =======================MAVLINK_MSG_ID_HEARTBEAT=====================\n");
@@ -695,111 +695,114 @@ start()
 {
 	int result;
 
-	// // --------------------------------------------------------------------------
-	// //   CHECK SERIAL PORT
-	// // --------------------------------------------------------------------------
-	//
-	// if ( not serial_port->status == 1 ) // SERIAL_PORT_OPEN
-	// {
-	// 	fprintf(stderr,"ERROR: serial port not open\n");
-	// 	throw 1;
-	// }
-	//
-	//
-	// // --------------------------------------------------------------------------
-	// //   READ THREAD
-	// // --------------------------------------------------------------------------
-	//
-	// printf("START READ THREAD \n");
-	//
-	// result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
-	// if (result)
-	// 	throw result;
-	//
-	// // now we're reading messages
-	// printf("\n");
-	//
-	//
-	// // --------------------------------------------------------------------------
-	// //   CHECK FOR MESSAGES
-	// // --------------------------------------------------------------------------
-	//
-	// printf("CHECK FOR MESSAGES\n");
-	//
-	// while (not current_messages.sysid)
-	// {
-	// 	if (time_to_exit)
-	// 		return;
-	// 	sleep(1); // check at 2Hz
-	// }
-	//
-	// printf("Found\n");
-	//
-	// // now we know autopilot is sending messages
-	// printf("\n");
-	//
-	//
-	// // --------------------------------------------------------------------------
-	// //   GET SYSTEM and COMPONENT IDs
-	// // --------------------------------------------------------------------------
-	//
-	// // This comes from the heartbeat, which in theory should only come from
-	// // the autopilot we're directly connected to it.  If there is more than one
-	// // vehicle then we can't expect to discover id's like this.
-	// // In which case set the id's manually.
-	//
-	// // System ID
-	// if ( not system_id )
-	// {
-	// 	system_id = current_messages.sysid;
-	// 	printf("GOT VEHICLE SYSTEM ID: %i\n", system_id );
-	// }
-	//
-	// // Component ID
-	// if ( not autopilot_id )
-	// {
-	// 	autopilot_id = current_messages.compid;
-	// 	printf("GOT AUTOPILOT COMPONENT ID: %i\n", autopilot_id);
-	// 	printf("\n");
-	// }
-	// // --------------------------------------------------------------------------
-	// //   PSITION STIMATOR THREAD
-	// // --------------------------------------------------------------------------
-	//
-	// //printf("START POSITION ESTIMATOR THREAD \n");
-	//
-	// //result = pthread_create( &read_tid, NULL, &start_autopilot_interface_position_estimator_thread, this );
-	// //if ( result ) throw result;
-	//
-	// // now we're reading messages
-	// //printf("\n");
-	//
-	//
-	// // --------------------------------------------------------------------------
-	// //   WRITE THREAD
-	// // --------------------------------------------------------------------------
-	// printf("START WRITE THREAD \n");
-	// result = pthread_create( &write_tid, NULL, &start_autopilot_interface_write_thread, this );
-	// if (result)
-	// 	throw result;
-	//
-	// // wait for it to be started
+	// --------------------------------------------------------------------------
+	//   CHECK SERIAL PORT
+	// --------------------------------------------------------------------------
+
+	if ( not serial_port->status == 1 ) // SERIAL_PORT_OPEN
+	{
+		fprintf(stderr,"ERROR: serial port not open\n");
+		throw 1;
+	}
+
+
+	// --------------------------------------------------------------------------
+	//   READ THREAD
+	// --------------------------------------------------------------------------
+
+	printf("START READ THREAD \n");
+
+	result = pthread_create( &read_tid, NULL, &start_autopilot_interface_read_thread, this );
+	if (result)
+		throw result;
+	result = pthread_setname_np(read_tid, "Laika Read MSG");
+
+	// now we're reading messages
+	printf("\n");
+
+
+
+	// --------------------------------------------------------------------------
+	//   CHECK FOR MESSAGES
+	// --------------------------------------------------------------------------
+
+	printf("CHECK FOR MESSAGES\n");
+
+	while (not current_messages.sysid)
+	{
+		if (time_to_exit)
+			return;
+		sleep(1); // check at 2Hz
+	}
+
+	printf("Found\n");
+
+	// now we know autopilot is sending messages
+	printf("\n");
+
+
+	// --------------------------------------------------------------------------
+	//   GET SYSTEM and COMPONENT IDs
+	// --------------------------------------------------------------------------
+
+	// This comes from the heartbeat, which in theory should only come from
+	// the autopilot we're directly connected to it.  If there is more than one
+	// vehicle then we can't expect to discover id's like this.
+	// In which case set the id's manually.
+
+	// System ID
+	if ( not system_id )
+	{
+		system_id = current_messages.sysid;
+		printf("GOT VEHICLE SYSTEM ID: %i\n", system_id );
+	}
+
+	// Component ID
+	if ( not autopilot_id )
+	{
+		autopilot_id = current_messages.compid;
+		printf("GOT AUTOPILOT COMPONENT ID: %i\n", autopilot_id);
+		printf("\n");
+	}
+	// --------------------------------------------------------------------------
+	//   PSITION STIMATOR THREAD
+	// --------------------------------------------------------------------------
+
+	//printf("START POSITION ESTIMATOR THREAD \n");
+
+	//result = pthread_create( &read_tid, NULL, &start_autopilot_interface_position_estimator_thread, this );
+	//if ( result ) throw result;
+
+	// now we're reading messages
+	//printf("\n");
+
+
+	// --------------------------------------------------------------------------
+	//   WRITE THREAD
+	// --------------------------------------------------------------------------
+	printf("START WRITE THREAD \n");
+	result = pthread_create( &write_tid, NULL, &start_autopilot_interface_write_thread, this );
+	if (result)
+		throw result;
+	result = pthread_setname_np(write_tid, "Laika Write MSG");
+
+	// wait for it to be started
 	// while (not writing_status)
 	// {
 	// 	if(time_to_exit)
 	// 		return;
 	// 	sleep(1); // 10Hz
 	// }
-	// // now we're streaming setpoint commands
-	// printf("\n");
-	// // Done!
-	//
+	// now we're streaming setpoint commands
+	printf("\n");
+	// Done!
+
 
 	// --------------------------------------------------------------------------
 	//   VISION THREAD
 	// --------------------------------------------------------------------------
 	printf("START VISION THREAD \n");
-	result = pthread_create( &vision_tid, NULL, &start_autopilot_interface_vision_thread, this );
+	//result = pthread_create( &vision_tid, NULL, &start_autopilot_interface_vision_thread, this );
 	if (result)
 		throw result;
 	result = pthread_setname_np(vision_tid, "Laika Vision");
