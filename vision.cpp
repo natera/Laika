@@ -158,7 +158,7 @@ int vision_main_thread()//( int argc, char** argv )
         if (SHOW)
         {
             //imshow("Thresholded Image", imgOG); //show the thresholded image
-            imshow("Original", imgOG); //show the original image
+            //imshow("Original", imgOG); //show the original image
         }
 
         //Identification
@@ -271,6 +271,7 @@ int do_Morph()
 void do_ROI(int, void* )
 {
     //ROI
+    bool lines=false;
     float Xmin=0;
     float Xmax=0;
     float Ymin=0;
@@ -317,12 +318,22 @@ void do_ROI(int, void* )
         //Get only 4
         for( size_t i = 0; i < 4; i++ )
         {
-            mc[i] = Point2f( static_cast<float>(mu[i].m10/mu[i].m00) , static_cast<float>(mu[i].m01/mu[i].m00) );
-            printf("For contour %i: X=%f, Y=%f\n", i, mc[i].x, mc[i].y);
+            //Check if the contours are only lines
+            if(static_cast<float>(mu[i].m00) == 0.0)
+            {
+                //ERROR
+                //Give defaults
+                lines=true;
+            }
+            else
+            {
+                mc[i] = Point2f( static_cast<float>(mu[i].m10/mu[i].m00) , static_cast<float>(mu[i].m01/mu[i].m00) );
+                printf("For contour %i: X=%f, Y=%f\n", i, mc[i].x, mc[i].y);
+            }
         }
 
         //Draw contours
-        if (SHOW)
+        if (SHOW && !lines)
         {
             //Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
             for( size_t i = 0; i< contours.size(); i++ )
@@ -331,46 +342,57 @@ void do_ROI(int, void* )
                 drawContours(imgOG, contours, (int)i, color, 2, 8, hierarchy, 0, Point() );
                 circle(imgOG, mc[i], 4, color, -1, 8, 0 );
             }
-            namedWindow("Contours", WINDOW_AUTOSIZE );
-            imshow("Contours", imgOG );
         }
         //Get coordinates for ROI
-            //If for some reason there is no previous ROI, check if there is an error
-        int j;
-        //Xmin
-        Xmin=mc[0].x;
-        for (j = 0; j < 4; j++)
+        //If for some reason there is no previous ROI, check if there is an error
+        if (lines)
         {
-            if (Xmin > mc[j].x)
-            {
-                Xmin = mc[j].x;
-            }
+            //There was an error
+            //Send message
+            //Return default image
+            Xmin=0;
+            Xmax=(float)imgThresh.cols;
+            Ymin=0;
+            Ymax=(float)imgThresh.rows;
         }
-        //Xmax
-        Xmax=mc[0].x;
-        for (j = 0; j < 4; j++)
+        else
         {
-            if (Xmax < mc[j].x)
+            int j;
+            //Xmin
+            Xmin=mc[0].x;
+            for (j = 0; j < 4; j++)
             {
-                Xmax = mc[j].x;
+                if (Xmin > mc[j].x)
+                {
+                    Xmin = mc[j].x;
+                }
             }
-        }
-        //Ymin
-        Ymin=mc[0].y;
-        for (j = 0; j < 4; j++)
-        {
-            if (Ymin > mc[j].y)
+            //Xmax
+            Xmax=mc[0].x;
+            for (j = 0; j < 4; j++)
             {
-                Ymin = mc[j].y;
+                if (Xmax < mc[j].x)
+                {
+                    Xmax = mc[j].x;
+                }
             }
-        }
-        //Ymax
-        Ymax=mc[0].y;
-        for (j = 0; j < 4; j++)
-        {
-            if (Ymax < mc[j].y)
+            //Ymin
+            Ymin=mc[0].y;
+            for (j = 0; j < 4; j++)
             {
-                Ymax = mc[j].y;
+                if (Ymin > mc[j].y)
+                {
+                    Ymin = mc[j].y;
+                }
+            }
+            //Ymax
+            Ymax=mc[0].y;
+            for (j = 0; j < 4; j++)
+            {
+                if (Ymax < mc[j].y)
+                {
+                    Ymax = mc[j].y;
+                }
             }
         }
     }
@@ -383,6 +405,10 @@ void do_ROI(int, void* )
         Ymin=0;
         Ymax=(float)imgThresh.rows;
     }
+    
+    //Show contours window
+    namedWindow("Contours", WINDOW_AUTOSIZE );
+    imshow("Contours", imgOG );
     
     //Print ROI (x,y)
     printf("Got Xmin = %f Xmax = %f Ymin = %f Ymax = %f\n", Xmin, Xmax, Ymin, Ymax);
