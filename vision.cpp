@@ -53,10 +53,14 @@ using namespace std;
 //Function headers
 void check_Status(int);
 int read_Video(VideoCapture cap);
-int RGB2HSV();
-int do_Threshold(int, int, int, int, int, int);
-int do_Morph();
+Mat BGR2HSV(Mat in_Mat);
+Mat BGR2GRAY(Mat in_Mat);
+Mat do_Threshold(int fiLowH, int fiHighH, int fiLowS, int fiHighS, int fiLowV, int fiHighV, Mat t_Mat);
+Mat do_GrayThresh(int fGLow, int fGHigh, Mat t_Mat);
+Mat do_Morph(Mat t_Mat, int elem_size);
 void do_ROI(int, void*);
+void do_Dist(int, void*);
+void do_Corr();
 
 //Sort function
     //Helper function to sort the areas in descending order
@@ -74,30 +78,34 @@ unsigned int RealAr = 3278;
 int thresh = 0;
 int max_thresh = 255;
 RNG rng(12345);
+float Xmin = 0;
+float Xmax = 0;
+float Ymin = 0;
+float Ymax = 0;
+float X_ROI = 0;
+float Y_ROI = 0;
+int Xcorr = 0;
+int Ycorr = 0;
 //Mats
 Mat imgOG;
 Mat imgROI;
 Mat imgThresh;
-//Mat imgOriginal;
-//Mat imgThresholded;
-//Mat imgHSV;
-//Mat canny_output;
-//VideoCapture cap;
+Mat imgROI_Thresh;
 
 int vision_main_thread()//( int argc, char** argv )
 {
     //HSV filter color values
-    //Test values! (Yellow-ish)
-    int iLowH = 13;
-    int iHighH = 82;
-
-    int iLowS = 51;
-    int iHighS = 168;
-
-    int iLowV = 159;
-    int iHighV = 237;
-
-    //status = start_Video(1);
+    //Good values now (Orange-ish)
+    int iLowH = 9;
+    int iHighH = 30;
+    int iLowS = 63; 
+    int iHighS = 255;
+    int iLowV = 45;
+    int iHighV = 255;
+    //Gray filter color values
+    //Good values (B/W)
+    int GLow = 0;
+    int GHigh = 101;
 
     VideoCapture cap(0); //capture the video from web cam
 
@@ -131,6 +139,13 @@ int vision_main_thread()//( int argc, char** argv )
         //Create trackbar for Canny/Contours
         //cvCreateTrackbar("Canny thresh:", "Control", &thresh, max_thresh, do_ROI);
         createTrackbar("Canny thresh:", "Control", &thresh, max_thresh, do_ROI);
+        
+        //ROI image control window
+        namedWindow("ROI Control", CV_WINDOW_AUTOSIZE); 
+        //Create trackbars in "ROI Control" window
+        //Hue: Shade of color
+        cvCreateTrackbar("GLow", "ROI Control", &GLow, 255); //Hue (0 - 179)
+        cvCreateTrackbar("GHigh", "ROI Control", &GHigh, 255);
     }
 
     while (true)
@@ -138,32 +153,47 @@ int vision_main_thread()//( int argc, char** argv )
         //Read new frame
         status = read_Video(cap);
         check_Status(status);
-
+        
         //PREPROCESSING
         //Blur
         blur(imgOG, imgOG, Size(3,3));
         //RGB to HSV
-        status = RGB2HSV();
-        check_Status(status);
-
+        imgThresh = BGR2HSV(imgOG);
         //PROCESSING
         //Threshold the image
-        status = do_Threshold(iLowH, iHighH, iLowS, iHighS, iLowV, iHighV);
-        check_Status(status);
-
-        status = do_Morph();
-        check_Status(status);
-
+        imgThresh = do_Threshold(iLowH, iHighH, iLowS, iHighS, iLowV, iHighV, imgThresh);
+        imgThresh = do_Morph(imgThresh, 3);
         //MUTE
         if (SHOW)
         {
             //imshow("Thresholded Image", imgOG); //show the thresholded image
             //imshow("Original", imgOG); //show the original image
         }
-
+        
         //Identification
         do_ROI(0,0);
-
+        //Blur ROI
+        blur(imgROI, imgROI, Size(3,3));
+        //Change colorspace to gray
+        imgROI_Thresh = BGR2GRAY(imgROI);
+        //Threshold
+        imgROI_Thresh = do_GrayThresh(GLow, GHigh, imgROI_Thresh);
+        //Morph operations
+        imgROI_Thresh = do_Morph(imgROI_Thresh, 3);
+         //MUTE
+        if (SHOW)
+        {
+            imshow("ROI Thresholded Image", imgROI_Thresh); //show the thresholded image
+        }
+        //cout << "IN DIST\n";
+        //Get distance
+        do_Dist(0,0);
+        //cout << "OUT DIST\n";
+        //Get correction
+        //cout << "IN CORR\n";
+        do_Corr();
+        //cout << "OUT CORR\n";
+        
         //CHECK!
         /*
         Moments oMoments = moments(contours[MaxCont]);
@@ -239,43 +269,55 @@ int read_Video(VideoCapture cap)
     }
 }
 
-int RGB2HSV()
+Mat BGR2HSV(Mat in_Mat)
 {
-    cvtColor(imgOG, imgThresh, COLOR_BGR2HSV); //Convert the captured frame from BGR to HSV
+    Mat out_Mat;
+    cvtColor(in_Mat, out_Mat, COLOR_BGR2HSV); //Convert the captured frame from BGR to HSV
     //We hope we're good
-    return 0;
+    return out_Mat;
 }
 
-int do_Threshold(int iLowH, int iHighH, int iLowS, int iHighS, int iLowV, int iHighV)
+Mat BGR2GRAY(Mat in_Mat)
 {
-    inRange(imgThresh, Scalar(iLowH, iLowS, iLowV), Scalar(iHighH, iHighS, iHighV), imgThresh);
+    Mat out_Mat;
+    cvtColor(in_Mat, out_Mat, CV_BGR2GRAY); //Convert the captured frame from BGR to HSV
     //We hope we're good
-    return 0;
+    return out_Mat;
 }
 
-int do_Morph()
+Mat do_Threshold(int fiLowH, int fiHighH, int fiLowS, int fiHighS, int fiLowV, int fiHighV, Mat t_Mat)
+{
+    inRange(t_Mat, Scalar(fiLowH, fiLowS, fiLowV), Scalar(fiHighH, fiHighS, fiHighV), t_Mat);
+    //We hope we're good
+    return t_Mat;
+}
+
+Mat do_GrayThresh(int fGLow, int fGHigh, Mat t_Mat)
+{
+    inRange(t_Mat, fGLow, fGHigh, t_Mat);
+    //We hope we're good
+    return t_Mat;
+}
+
+Mat do_Morph(Mat t_Mat, int elem_size)
 {
     //Check for sizes and Structuring Elements
     //morphological opening (remove small objects from the foreground)
-    erode(imgThresh, imgThresh, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
-    dilate(imgThresh, imgThresh, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
-    //3x3
+    erode(t_Mat, t_Mat, getStructuringElement(MORPH_ELLIPSE, Size(elem_size, elem_size)) );
+    dilate(t_Mat, t_Mat, getStructuringElement(MORPH_ELLIPSE, Size(elem_size, elem_size)) );
     //morphological closing (fill small holes in the foreground)
-    dilate( imgThresh, imgThresh, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
-    erode(imgThresh, imgThresh, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
-    //eliminar
+    dilate(t_Mat, t_Mat, getStructuringElement(MORPH_ELLIPSE, Size(elem_size, elem_size)) );
+    erode(t_Mat, t_Mat, getStructuringElement(MORPH_ELLIPSE, Size(elem_size, elem_size)) );
     //We should be good!
-    return 0;
+    return t_Mat;
 }
 
-void do_ROI(int, void* )
+void do_ROI(int, void*)
 {
     //ROI
+    Mat no_Contours;
+    imgOG.copyTo(no_Contours);
     bool lines=false;
-    float Xmin=0;
-    float Xmax=0;
-    float Ymin=0;
-    float Ymax=0;
     //Canny
     Mat cannyOut;
     //Contour
@@ -290,10 +332,10 @@ void do_ROI(int, void* )
         //tresh*3 -> Recommended value
         //3 -> Kernel size (recommended value)
     Canny(imgThresh, cannyOut, thresh, thresh*3, 3);
-
+    
     //Find contours
     findContours(cannyOut, contours, hierarchy, CV_RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
-
+    printf("I got %d contours\n", contours.size());
     if(contours.size()>3)
     {
         //Get the moments
@@ -335,7 +377,6 @@ void do_ROI(int, void* )
         //Draw contours
         if (SHOW && !lines)
         {
-            //Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
             for( size_t i = 0; i< contours.size(); i++ )
             {
                 Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
@@ -426,6 +467,106 @@ void do_ROI(int, void* )
     
     //ROI in original image
     //Rect (Xmin, Ymin, Width, Height)
-    imgROI = imgThresh( Rect (Xmin, Ymin, Xmax-Xmin, Ymax-Ymin) );
+    cout << "IN NO_CONT\n";
+    imgROI = no_Contours( Rect (Xmin, Ymin, Xmax-Xmin, Ymax-Ymin) );
+    cout << "OUT NO_CONT\n";
+    //imgOG(Rect (Xmin, Ymin, Xmax-Xmin, Ymax-Ymin)).copyTo(imgROI);
+    cout << "IN ROI PRINT\n";
     imshow("ROI", imgROI);
+    cout << "OUT ROI PRINT\n";
+}
+
+void do_Dist(int, void*)
+{
+    bool lines=false;
+    //Canny
+    Mat cannyOut;
+    //Contour
+    vector<vector<Point> > contours;
+    vector<Vec4i> hierarchy;
+
+    //Detect edges using canny
+    //Canny( imgThresh, cannyOut, thresh, thresh*3, 3 );
+        //imgThresholded -> image
+        //canny_output -> output
+        //tresh -> Detection threshold
+        //tresh*3 -> Recommended value
+        //3 -> Kernel size (recommended value)
+    Canny(imgROI_Thresh, cannyOut, thresh, thresh*3, 3);
+    
+    //Find contours
+    findContours(cannyOut, contours, hierarchy, CV_RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, Point(0, 0));
+    
+    if(contours.size()>0)
+    {
+        vector<Moments> mu(contours.size() );
+        for( size_t i = 0; i < contours.size(); i++ )
+        {
+            mu[i] = moments( contours[i], true );
+            //printf("Got contour %i\n", i);
+        }
+            
+        //Sort vector
+        sort(mu.begin(), mu.end(), sortByArea);
+            
+        //Print sorted vector
+        for( size_t i = 0; i< contours.size(); i++ )
+        {
+            printf("SORTED: Contour[%d] - Area (M_00) = %.2f - Area OpenCV: %.2f - Length: %.2f \n", (int)i, mu[i].m00, contourArea(contours[i]), arcLength( contours[i], true ) );
+        }
+        //Get the mass centers:
+        vector<Point2f> mc( contours.size() );
+        //for( size_t i = 0; i < contours.size(); i++ )
+        //Get biggest one
+        for( size_t i = 0; i < 1; i++ )
+        {
+            //Check if the contours are only lines
+            if(static_cast<float>(mu[i].m00) == 0.0)
+            {
+                //ERROR
+                //Give defaults
+                lines=true;
+            }
+            else
+            {
+                mc[i] = Point2f( static_cast<float>(mu[i].m10/mu[i].m00) , static_cast<float>(mu[i].m01/mu[i].m00) );
+                printf("For contour %i: X=%f, Y=%f\n", i, mc[i].x, mc[i].y);
+                X_ROI=static_cast<float>(mc[i].x);
+                Y_ROI=static_cast<float>(mc[i].y);
+            }
+        }
+
+        //Draw contours
+        if (SHOW && !lines)
+        {
+            //Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
+            for( size_t i = 0; i< 1; i++ )
+            {
+                Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0,255), rng.uniform(0,255) );
+                drawContours(imgROI, contours, (int)i, color, 2, 8, hierarchy, 0, Point() );
+                circle(imgROI, mc[i], 4, color, -1, 8, 0 );
+            }
+        }
+    }
+    else
+    {
+        //Nothing found!
+        //Send message
+    }
+    imshow("ROI", imgROI);
+}
+
+void do_Corr()
+{
+    int X_total=0;
+    int Y_total=0;
+    //Get real distance
+    X_total=int(X_ROI)+int(Xmin);
+    Y_total=int(Y_ROI)+int(Ymin);
+    //Check against half of the image size
+    Xcorr=((float)imgThresh.cols/2)-X_total;
+    Ycorr=((float)imgThresh.rows/2)-Y_total;
+    //Give res
+    printf("The center is at X: %d, Y: %d\n", X_total, Y_total);
+    printf("Correction needed X: %i, Y: %i\n", Xcorr, Ycorr);
 }
